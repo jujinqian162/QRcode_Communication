@@ -3,19 +3,18 @@
 rcoder 是一个用于通过二维码进行数据编码和解码的 Python 库，支持将 Python 基本数据类型通过 msgpack 序列化、zlib 压缩（可选）和 base64 编码后嵌入到二维码中，也可从二维码中反向解析出原始数据。
 
 ## 安装依赖
-
-使用前需确保安装以下依赖库：
-- msgpack
-- zlib（通常 Python 标准库已包含）
-- base64（通常 Python 标准库已包含）
-- opencv-python (cv2)
-- numpy
-- qrcode
-- qreader
-
-可通过 pip 安装所需依赖：
+- uv 安装依赖
+下载依赖：
 ```bash
-pip install msgpack opencv-python numpy qrcode qreader
+uv sync
+```
+运行测试：
+```bash
+uv run pytest
+```
+- pip 安装依赖
+```bash
+pip install -r requirements.txt
 ```
 
 ## 基本使用
