@@ -1,4 +1,5 @@
 from typing import Any
+from qreader import QReader
 import msgpack
 import zlib
 import hashlib
@@ -79,10 +80,10 @@ def decoder(img_bgr8: np.ndarray) -> Any:
       - ValueError("invalid_payload_format") 如果分隔不正确
       - ValueError("hash_mismatch") 如果校验失败
     """
-    # Use OpenCV QRCodeDetector
-    detector = cv2.QRCodeDetector()
-    # detectAndDecode works with BGR images
-    data_str, _, _ = detector.detectAndDecode(img_bgr8)
+
+    data_str = None
+    for _ in range(0, 50):
+        data_str = QReader().detect_and_decode(img_bgr8)[0]
     if not data_str:
         # detectAndDecode 返回空串表示没有解出或没有二维码
         raise ValueError("no_qr_found")
@@ -90,8 +91,8 @@ def decoder(img_bgr8: np.ndarray) -> Any:
     # parse "<hash>|<b64>"
     if SEP not in data_str:
         raise ValueError("invalid_payload_format")
-    hash_str, b64 = data_str.split(SEP, 1)
 
+    hash_str, b64 = data_str.split(SEP, 1)
 
     # verify
     expected = _calc_hash(b64) 
