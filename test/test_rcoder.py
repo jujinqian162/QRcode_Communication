@@ -1,8 +1,8 @@
 import pytest
 import os
 import cv2
-from rcoder.decoder import Decoder
-from rcoder.encoder import Encoder
+from rcoder import Decoder
+from rcoder import Encoder
 
 def test_encode_decode_roundtrip(data_dir):
     """编码后解码应该得到原始数据"""
