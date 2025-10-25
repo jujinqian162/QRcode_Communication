@@ -1,103 +1,155 @@
 # rcoder 库使用说明
 
-rcoder 是一个用于通过二维码进行数据编码和解码的 Python 库，支持将 Python 基本数据类型通过 msgpack 序列化、zlib 压缩（可选）和 base64 编码后嵌入到二维码中，也可从二维码中反向解析出原始数据。
+rcoder 是一个用于通过二维码进行数据编码和解码的 Python 库，适用于需要在图像、屏幕或打印载体之间传递结构化数据的场景。库内置基于 msgpack 的序列化方案，并辅以 zlib 压缩（可选）和 base64 编码，使二维码能够携带更多信息的同时保持良好的兼容性。
+
+## 项目简介
+
+- **核心能力**：在二维码与 Python 基本数据类型（`dict`、`list`、`str`、`int` 等）之间完成高效、可靠的双向转换。
+- **实现方式**：编码阶段依次执行 msgpack 序列化 → 可选的 zlib 压缩 → base64 编码；解码阶段反向执行上述流程，并借助 `qreader` 自动识别二维码内容。
+- **适用场景**：机器人通信、线下数据分发、跨设备配置同步等需要在无网络或弱网络环境中交换数据的场景。
+
+## 仓库结构
+
+```
+QRcode_Communication/
+├── rcoder/             # 核心库，提供 Encoder 与 Decoder 类
+├── jujinqian/          # 示例脚本与演示二维码
+├── WORKRECORD.md       # 历史工作记录
+└── README.md           # 当前文档
+```
+
+示例脚本 `jujinqian/main.py` 与 `jujinqian/readqr.py` 展示了如何在应用层集成 rcoder 库，可直接运行体验端到端流程。
+
+## 功能特点
+
+- **高效序列化**：使用 msgpack 在保持数据结构的同时尽量缩减体积。
+- **可选压缩**：通过 zlib 压缩进一步减小二维码中嵌入的数据量，参数可自定义。
+- **跨平台兼容**：编码结果为 OpenCV 常用的 BGR8 图像，可直接在 ROS2、机器人或计算机视觉流程中使用。
+- **鲁棒解码**：借助 `qreader` 自动识别二维码，遇到无法识别时返回 `None` 以便上层处理。
+- **易于集成**：仅依赖少量常见第三方库，提供简单直观的 API。
+
+## 环境准备
+
+- Python 3.8 及以上版本（建议使用虚拟环境或 [uv](https://docs.astral.sh/uv/) 管理依赖）。
+- 已安装 OpenCV 所需的系统依赖（大多数环境中 pip 安装 `opencv-python` 即可）。
+
+### 使用 pip 创建环境
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows 使用 .venv\Scripts\activate
+pip install --upgrade pip
+```
+
+### 使用 uv 运行示例
+
+如果希望直接运行示例脚本，可安装 uv：
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+随后执行：
+
+```bash
+uv run --script jujinqian/main.py
+uv run --script jujinqian/readqr.py
+```
 
 ## 安装依赖
 
-使用前需确保安装以下依赖库：
-- msgpack
-- zlib（通常 Python 标准库已包含）
-- base64（通常 Python 标准库已包含）
-- opencv-python (cv2)
-- numpy
-- qrcode
-- qreader
+使用 pip 安装所需依赖：
 
-可通过 pip 安装所需依赖：
 ```bash
 pip install msgpack opencv-python numpy qrcode qreader
 ```
 
-## 基本使用
+上述命令会同时安装标准库中已包含的 `zlib`、`base64` 等所需模块。
 
-### 1. 数据编码（生成带数据的二维码）
+## 快速开始
 
-使用 `Encoder` 类可将 Python 基本数据类型（如字典、列表、字符串等）编码为二维码图像（ROS2 支持的 BGR8 格式）。
+### 编码：生成带数据的二维码
+
+使用 `Encoder` 类可将 Python 基本数据类型编码为二维码图像（OpenCV/ROS2 常用的 BGR8 格式）：
 
 ```python
 from rcoder import Encoder
+import qrcode
 import cv2
 
-# 初始化编码器（默认启用压缩）
-encoder = Encoder()
+encoder = Encoder(
+    compress=True,                          # 是否启用 zlib 压缩
+    compress_level=9,                       # 压缩级别，1-9，数值越大压缩率越高
+    qr_version=None,                        # 二维码版本，None 表示自动选择
+    error_correction=qrcode.constants.ERROR_CORRECT_L,  # 纠错级别
+)
 
-# 准备要编码的数据（支持Python基本类型）
-data = {
+payload = {
     "name": "rcoder",
     "version": "1.0.0",
     "features": ["msgpack", "zlib", "base64", "qrcode"],
-    "is_active": True
+    "is_active": True,
 }
 
-# 编码数据生成二维码图像（BGR8格式）
-qr_image = encoder.encode(data)
-
-# 保存二维码图像（可选）
+qr_image = encoder.encode(payload)
 cv2.imwrite("encoded_qr.png", qr_image)
 ```
 
-#### 编码器参数说明
+> **提示**：若希望让二维码容错率更高，可将 `error_correction` 设置为 `qrcode.constants.ERROR_CORRECT_M/Q/H`，但二维码容量会随之下降。
 
-- `compress`：是否启用 zlib 压缩（默认 `True`）
-- `compress_level`：压缩级别（1-9，默认 9，级别越高压缩率越高）
-- `qr_version`：二维码版本（1-40， None 则自动选择合适版本，默认 None）
-- `error_correction`：纠错级别（默认 `qrcode.constants.ERROR_CORRECT_L`，可选 L/M/Q/H）
+### 解码：从二维码中还原数据
 
-
-### 2. 数据解码（从二维码中解析数据）
-
-使用 `Decoder` 类可从二维码图像（BGR8 格式）中解析出原始 Python 数据。
+`Decoder` 类负责从 BGR8 格式的图像中识别并解析二维码：
 
 ```python
 from rcoder import Decoder
 import cv2
 
-# 初始化解码器（默认启用解压缩，需与编码时保持一致）
-decoder = Decoder()
-
-# 读取二维码图像（BGR8格式）
+decoder = Decoder(compress=True)  # compress 参数需与编码端保持一致
 qr_image = cv2.imread("encoded_qr.png")
 
-# 解码获取原始数据
-data = decoder.decode(qr_image)
+payload = decoder.decode(qr_image)
+if payload is None:
+    raise ValueError("二维码识别失败或内容无效")
 
-print("解析出的数据：", data)
+print("解析出的数据：", payload)
 ```
 
-#### 解码器参数说明
+### API 速查
 
-- `compress`：是否启用 zlib 解压缩（默认 `True`，需与编码时的 `compress` 参数保持一致）
+- `Encoder.encode(data)`：接收 Python 基本类型数据，返回 BGR8 `numpy.ndarray` 图像。
+- `Decoder.decode(image)`：接收 BGR8 图像，成功时返回原始数据，失败时返回 `None`。
 
-
-## 工作流程说明
+## 工作流程
 
 ### 编码流程
-1. 使用 msgpack 将 Python 数据序列化为二进制数据
-2. （可选）用 zlib 压缩二进制数据
-3. 将二进制数据转换为 base64 字符串
-4. 生成包含 base64 字符串的二维码
-5. 转换为 BGR8 格式图像返回
+1. 使用 msgpack 将 Python 数据序列化为二进制。
+2. （可选）使用 zlib 对二进制数据压缩。
+3. 将压缩结果转换为 base64 字符串。
+4. 将 base64 字符串写入二维码并生成图像。
+5. 将二维码转换为 BGR8 格式供 OpenCV/ROS2 使用。
 
 ### 解码流程
-1. 从输入图像中识别二维码并提取 base64 字符串
-2. 将 base64 字符串解码为二进制数据
-3. （可选）用 zlib 解压缩二进制数据
-4. 使用 msgpack 反序列化得到原始 Python 数据
-5. 返回解析后的 Python 数据
+1. 对输入图像进行二维码识别并提取 base64 字符串。
+2. 将 base64 字符串解码为二进制数据。
+3. （可选）对二进制数据进行 zlib 解压缩。
+4. 使用 msgpack 反序列化得到原始 Python 数据。
+5. 返回解析后的数据；若任一步骤失败，则返回 `None`。
 
+## 示例与调试建议
 
-## 注意事项
-1. 编码和解码时的 `compress` 参数必须保持一致，否则会导致解析失败
-2. 数据量过大可能导致二维码过于复杂而无法识别，建议控制数据大小
-3. 输入到解码器的图像应为 BGR8 格式（ROS2 常用图像格式），与 OpenCV 默认读取格式一致
-4. 二维码识别受图像质量影响，建议保证图像清晰、二维码完整无遮挡
+- 运行 `jujinqian/main.py` 可以生成示例二维码图像 `qr.png`，再使用 `jujinqian/readqr.py` 读取并验证解码结果。
+- 若二维码过于复杂导致识别失败，可尝试降低单次传输的数据量，或将 `compress=True`、提高压缩等级。
+- 在低光或摄像头噪声较大的场景下，建议提前对图像做灰度化、裁剪等预处理，以提升 `qreader` 的识别率。
+
+## 常见问题
+
+1. **解码返回 `None`**：通常是二维码图像质量不佳、二维码被遮挡或 `compress` 参数不一致造成的，请逐一排查。
+2. **二维码容量不足**：可以开启压缩、降低纠错等级或拆分数据为多张二维码。
+3. **OpenCV 读取失败**：确保图像路径正确，或使用绝对路径。
+
+## 许可证
+
+项目遵循 [MIT License](LICENSE)。
+
+如需进一步扩展或集成，欢迎在 issue 中反馈需求。
